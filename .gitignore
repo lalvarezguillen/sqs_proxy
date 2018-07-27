@@ -1,0 +1,3 @@
+config/
+sqs_proxy
+run_*.sh
