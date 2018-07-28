@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-type AppConfig struct {
-	ProxySettingsFile string
-	AWSRegion         string
-}
-
 func loadRequiredEnvVariable(n string) (string, error) {
 	v := os.Getenv(n)
 	if v == "" {
@@ -21,34 +16,22 @@ func loadRequiredEnvVariable(n string) (string, error) {
 	return v, nil
 }
 
-func loadConfig() (*AppConfig, error) {
-	f, err := loadRequiredEnvVariable("PROXY_SETTINGS_FILE")
-	if err != nil {
-		return nil, err
-	}
-	r, err := loadRequiredEnvVariable("AWS_REGION")
-	if err != nil {
-		return nil, err
-	}
-	return &AppConfig{ProxySettingsFile: f, AWSRegion: r}, nil
-}
-
 type ProxySettings struct {
 	Src      string
 	Dest     []string
 	Interval time.Duration
 }
 
-type Settings struct {
-	Proxies []ProxySettings
+type AppConfig struct {
+	ProxyOps []ProxySettings
 }
 
-func loadProxySettings(fpath string) ([]ProxySettings, error) {
+func loadConfig(fpath string) (*AppConfig, error) {
 	file, err := ioutil.ReadFile(fpath)
 	if err != nil {
-		return nil, err
+		return &AppConfig{}, err
 	}
-	var config Settings
-	json.Unmarshal(file, &config)
-	return config.Proxies, nil
+	var c AppConfig
+	json.Unmarshal(file, &c)
+	return &c, nil
 }

@@ -17,23 +17,9 @@ func TestLoadRequiredEnvVariable(t *testing.T) {
 	assert.Equal(t, "dummy-val", val)
 }
 
-func TestLoadConfigMissingData(t *testing.T) {
-	_, err := loadConfig()
-	assert.Error(t, err)
-}
-
 func TestLoadConfig(t *testing.T) {
-	os.Setenv("PROXY_SETTINGS_FILE", "config.json")
-	os.Setenv("AWS_REGION", "us-east-1")
-	c, err := loadConfig()
-	assert.NoError(t, err)
-	assert.Equal(t, "config.json", c.ProxySettingsFile)
-	assert.Equal(t, "us-east-1", c.AWSRegion)
-}
-
-func TestLoadProxySettings(t *testing.T) {
-	s := Settings{
-		Proxies: []ProxySettings{
+	conf := AppConfig{
+		ProxyOps: []ProxySettings{
 			ProxySettings{
 				Src:      "dummy-source-1",
 				Dest:     []string{"dummy-destination-1", "dummy-destination-2"},
@@ -46,11 +32,11 @@ func TestLoadProxySettings(t *testing.T) {
 			},
 		},
 	}
-	b, _ := json.Marshal(&s)
+	b, _ := json.Marshal(&conf)
 	fname := "/tmp/dummy-config.json"
 	ioutil.WriteFile(fname, b, 0644)
 
-	p, err := loadProxySettings(fname)
+	c, err := loadConfig(fname)
 	assert.NoError(t, err)
-	assert.Equal(t, s.Proxies, p)
+	assert.Equal(t, conf.ProxyOps, c.ProxyOps)
 }

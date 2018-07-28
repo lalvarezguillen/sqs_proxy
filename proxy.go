@@ -2,8 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/urfave/cli"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -11,69 +15,87 @@ import (
 )
 
 func main() {
-	config, err := loadConfig()
-	if err != nil {
-		panic(err)
+	app := cli.NewApp()
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "config",
+			Usage: "The path to the json file that contains the configuration to run this proxy",
+		},
 	}
+	app.Action = func(c *cli.Context) error {
+		conf := c.String("config")
+		if conf == "" {
+			return fmt.Errorf("--config is a required argument")
+		}
+		fmt.Println("Using config file: " + conf)
 
-	proxyOps, err := loadProxySettings(config.ProxySettingsFile)
-	if err != nil {
-		panic(err)
+		proxyConf, err := loadConfig(conf)
+		if err != nil {
+			return err
+		}
+		startProxy(proxyConf)
+		return nil
 	}
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
+}
 
-	s, err := createSQSSession(config)
-	if err != nil {
-		panic(err)
-	}
+func startProxy(conf *AppConfig) {
+	fmt.Println(fmt.Sprintf("starting proxy with conf %+v", conf))
+	s := createSQSSession()
 
 	var wg sync.WaitGroup
-	wg.Add(len(proxyOps))
-	for _, op := range proxyOps {
-		go proxyQueue(s, op.Src, op.Dest, op.Interval, &wg)
+	wg.Add(len(conf.ProxyOps))
+	for _, op := range conf.ProxyOps {
+		go hookToQueue(s, &op, &wg)
 	}
 	wg.Wait()
 }
 
-func createSQSSession(c *AppConfig) (*sqs.SQS, error) {
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String(c.AWSRegion),
-	}))
+func createSQSSession() *sqs.SQS {
+	sess := session.Must(session.NewSession())
 	sqsSess := sqs.New(sess)
-	return sqsSess, nil
+	return sqsSess
 }
 
-func proxyQueue(s *sqs.SQS, srcQ string, destQs []string, interval time.Duration, wg *sync.WaitGroup) {
+func hookToQueue(s *sqs.SQS, conf *ProxySettings, wg *sync.WaitGroup) {
 	defer wg.Done()
 	readParams := sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: aws.Int64(10),
-		QueueUrl:            aws.String(srcQ),
+		QueueUrl:            aws.String(conf.Src),
 		WaitTimeSeconds:     aws.Int64(20),
 	}
 	for {
-		readResp, err := s.ReceiveMessage(&readParams)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(fmt.Sprintf("%d messages to proxy from Queue %s", len(readResp.Messages), srcQ))
-		// TODO: Look into batch writing and batch deleting
-		for _, msg := range readResp.Messages {
-			for _, q := range destQs {
-				writeParams := sqs.SendMessageInput{
-					MessageBody: msg.Body,
-					QueueUrl:    aws.String(q),
-				}
-				if _, err := s.SendMessage(&writeParams); err != nil {
-					panic(err)
-				}
+		proxyMessages(s, &readParams, conf.Dest)
+		time.Sleep(conf.Interval * time.Second)
+	}
+}
+
+func proxyMessages(s *sqs.SQS, srcParams *sqs.ReceiveMessageInput, destQs []string) {
+	readResp, err := s.ReceiveMessage(srcParams)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(fmt.Sprintf("%d messages to proxy from Queue %s",
+		len(readResp.Messages), *srcParams.QueueUrl))
+	// TODO: Look into batch writing and batch deleting
+	for _, msg := range readResp.Messages {
+		for _, q := range destQs {
+			writeParams := sqs.SendMessageInput{
+				MessageBody: msg.Body,
+				QueueUrl:    aws.String(q),
 			}
-			deleteParams := sqs.DeleteMessageInput{
-				QueueUrl:      aws.String(srcQ),
-				ReceiptHandle: msg.ReceiptHandle,
-			}
-			if _, err := s.DeleteMessage(&deleteParams); err != nil {
+			if _, err := s.SendMessage(&writeParams); err != nil {
 				panic(err)
 			}
 		}
-		time.Sleep(interval * time.Second)
+		deleteParams := sqs.DeleteMessageInput{
+			QueueUrl:      srcParams.QueueUrl,
+			ReceiptHandle: msg.ReceiptHandle,
+		}
+		if _, err := s.DeleteMessage(&deleteParams); err != nil {
+			panic(err)
+		}
 	}
 }
