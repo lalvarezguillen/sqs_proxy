@@ -59,7 +59,13 @@ func createSQSSession() *sqs.SQS {
 	return sqsSess
 }
 
-func hookToQueue(s *sqs.SQS, conf *ProxySettings, wg *sync.WaitGroup) {
+type SQSClient interface {
+	ReceiveMessage(i *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
+	SendMessage(i *sqs.SendMessageInput) (*sqs.SendMessageOutput, error)
+	DeleteMessage(i *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
+}
+
+func hookToQueue(s SQSClient, conf *ProxySettings, wg *sync.WaitGroup) {
 	defer wg.Done()
 	readParams := sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: aws.Int64(10),
@@ -72,7 +78,7 @@ func hookToQueue(s *sqs.SQS, conf *ProxySettings, wg *sync.WaitGroup) {
 	}
 }
 
-func proxyMessages(s *sqs.SQS, srcParams *sqs.ReceiveMessageInput, destQs []string) {
+func proxyMessages(s SQSClient, srcParams *sqs.ReceiveMessageInput, destQs []string) {
 	readResp, err := s.ReceiveMessage(srcParams)
 	if err != nil {
 		panic(err)
