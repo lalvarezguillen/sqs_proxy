@@ -27,7 +27,7 @@ func main() {
 		if conf == "" {
 			return fmt.Errorf("--config is a required argument")
 		}
-		fmt.Println("Using config file: " + conf)
+		fmt.Println("Configuration file:", conf)
 
 		proxyConf, err := loadConfig(conf)
 		if err != nil {
