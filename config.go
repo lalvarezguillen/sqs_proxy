@@ -2,19 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
-	"os"
 	"time"
 )
-
-func loadRequiredEnvVariable(n string) (string, error) {
-	v := os.Getenv(n)
-	if v == "" {
-		return "", fmt.Errorf("Missing required %s environment variable", n)
-	}
-	return v, nil
-}
 
 type ProxySettings struct {
 	Src      string

@@ -3,19 +3,10 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestLoadRequiredEnvVariable(t *testing.T) {
-	os.Setenv("dummy-var", "dummy-val")
-
-	val, err := loadRequiredEnvVariable("dummy-var")
-	assert.Nil(t, err)
-	assert.Equal(t, "dummy-val", val)
-}
 
 func TestLoadConfig(t *testing.T) {
 	conf := AppConfig{
