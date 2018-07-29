@@ -48,7 +48,7 @@ func startProxy(conf *AppConfig) {
 	var wg sync.WaitGroup
 	wg.Add(len(conf.ProxyOps))
 	for _, op := range conf.ProxyOps {
-		go hookToQueue(s, &op, &wg)
+		go hookToQueue(s, op, &wg)
 	}
 	wg.Wait()
 }
@@ -65,7 +65,7 @@ type SQSClient interface {
 	DeleteMessage(i *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
 }
 
-func hookToQueue(s SQSClient, conf *ProxySettings, wg *sync.WaitGroup) {
+func hookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
 	defer wg.Done()
 	readParams := sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: aws.Int64(10),
