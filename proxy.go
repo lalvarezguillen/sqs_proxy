@@ -78,16 +78,16 @@ func hookToQueue(s SQSClient, conf *ProxySettings, wg *sync.WaitGroup) {
 	}
 }
 
-func proxyMessages(s SQSClient, srcParams *sqs.ReceiveMessageInput, destQs []string) {
-	readResp, err := s.ReceiveMessage(srcParams)
+func proxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) {
+	readResp, err := s.ReceiveMessage(src)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println(fmt.Sprintf("%d messages to proxy from Queue %s",
-		len(readResp.Messages), *srcParams.QueueUrl))
+		len(readResp.Messages), *src.QueueUrl))
 	// TODO: Look into batch writing and batch deleting
 	for _, msg := range readResp.Messages {
-		for _, q := range destQs {
+		for _, q := range dest {
 			writeParams := sqs.SendMessageInput{
 				MessageBody: msg.Body,
 				QueueUrl:    aws.String(q),
@@ -97,7 +97,7 @@ func proxyMessages(s SQSClient, srcParams *sqs.ReceiveMessageInput, destQs []str
 			}
 		}
 		deleteParams := sqs.DeleteMessageInput{
-			QueueUrl:      srcParams.QueueUrl,
+			QueueUrl:      src.QueueUrl,
 			ReceiptHandle: msg.ReceiptHandle,
 		}
 		if _, err := s.DeleteMessage(&deleteParams); err != nil {
