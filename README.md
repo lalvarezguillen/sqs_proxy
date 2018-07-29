@@ -56,3 +56,4 @@ go build .
 * Extend unittests
 * Make it possible to proxy messages to the recipient queues in a round robin fashion. Consider a ramdom recipient method as well.
 * Make the long-polling time configurable
+* Set up CI
