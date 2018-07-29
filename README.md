@@ -1,5 +1,7 @@
 ## SQS Queues Proxy
 
+This is a work in progress, and a learning project.
+
 This project's purpose is, given an SQS queue A, take all the messages it receives and send them to queues B, C, etc; deleting them from A in the process.
 
 It is configurable through a JSON file, being able to listen to several queues, and set several recipient queues per source.
@@ -57,3 +59,4 @@ go build .
 * Make it possible to proxy messages to the recipient queues in a round robin fashion. Consider a random recipient method as well.
 * Make the long-polling time configurable
 * Set up CI
+* Consider storing some metadata on the messages proxied
