@@ -33,7 +33,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		startProxy(proxyConf)
+		StartProxy(proxyConf)
 		return nil
 	}
 	if err := app.Run(os.Args); err != nil {
@@ -41,14 +41,16 @@ func main() {
 	}
 }
 
-func startProxy(conf *AppConfig) {
+// StartProxy starts the operations. Based on the proxy configuration,
+// sets up a coroutine per source queue to handle the actual proxying.
+func StartProxy(conf *AppConfig) {
 	fmt.Println(fmt.Sprintf("starting proxy with conf %+v", conf))
 	s := createSQSSession()
 
 	var wg sync.WaitGroup
 	wg.Add(len(conf.ProxyOps))
 	for _, op := range conf.ProxyOps {
-		go hookToQueue(s, op, &wg)
+		go HookToQueue(s, op, &wg)
 	}
 	wg.Wait()
 }
@@ -59,13 +61,17 @@ func createSQSSession() *sqs.SQS {
 	return sqsSess
 }
 
+// SQSClient is defined with the methods implemented by sqs.SQS, in order to be
+// able to create structs that mock sqs.SQS
 type SQSClient interface {
 	ReceiveMessage(i *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error)
 	SendMessage(i *sqs.SendMessageInput) (*sqs.SendMessageOutput, error)
 	DeleteMessage(i *sqs.DeleteMessageInput) (*sqs.DeleteMessageOutput, error)
 }
 
-func hookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
+// HookToQueue starts listening from a source queue, and handling the messages
+// that come through.
+func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
 	defer wg.Done()
 	readParams := sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: aws.Int64(10),
@@ -73,12 +79,15 @@ func hookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
 		WaitTimeSeconds:     aws.Int64(20),
 	}
 	for {
-		proxyMessages(s, &readParams, conf.Dest)
+		ProxyMessages(s, &readParams, conf.Dest)
 		time.Sleep(conf.Interval * time.Second)
 	}
 }
 
-func proxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) {
+// ProxyMessages reads some of the messages available in a source queue, and
+// copies them to the destination queues, deleting them from the source queue
+// afterwards.
+func ProxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) {
 	readResp, err := s.ReceiveMessage(src)
 	if err != nil {
 		panic(err)

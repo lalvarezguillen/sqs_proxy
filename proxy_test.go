@@ -78,7 +78,7 @@ func TestProxyMessages(t *testing.T) {
 	c.On("DeleteMessage", &dmInput2).Return(&sqs.DeleteMessageOutput{}, nil)
 
 	// Actual test
-	proxyMessages(c, &i, d)
+	ProxyMessages(c, &i, d)
 	c.AssertExpectations(t)
 	c.AssertNumberOfCalls(t, "ReceiveMessage", 1)
 	c.AssertNumberOfCalls(t, "SendMessage", 2)
@@ -121,7 +121,7 @@ func TestNoMessagesToProxy(t *testing.T) {
 	c.On("DeleteMessage", &dmInput2).Return(&sqs.DeleteMessageOutput{}, nil)
 
 	// Actual test
-	proxyMessages(c, &i, d)
+	ProxyMessages(c, &i, d)
 	c.AssertNumberOfCalls(t, "ReceiveMessage", 1)
 	c.AssertNotCalled(t, "SendMessage")
 	c.AssertNotCalled(t, "DeleteMessage")
