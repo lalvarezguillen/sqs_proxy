@@ -79,7 +79,9 @@ func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
 		WaitTimeSeconds:     aws.Int64(20),
 	}
 	for {
-		ProxyMessages(s, &readParams, conf.Dest)
+		if err := ProxyMessages(s, &readParams, conf.Dest); err != nil {
+			panic(err)
+		}
 		time.Sleep(conf.Interval * time.Second)
 	}
 }
@@ -87,10 +89,10 @@ func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
 // ProxyMessages reads some of the messages available in a source queue, and
 // copies them to the destination queues, deleting them from the source queue
 // afterwards.
-func ProxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) {
+func ProxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) error {
 	readResp, err := s.ReceiveMessage(src)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	fmt.Println(fmt.Sprintf("%d messages to proxy from Queue %s",
 		len(readResp.Messages), *src.QueueUrl))
@@ -102,7 +104,7 @@ func ProxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) {
 				QueueUrl:    aws.String(q),
 			}
 			if _, err := s.SendMessage(&writeParams); err != nil {
-				panic(err)
+				return err
 			}
 		}
 		deleteParams := sqs.DeleteMessageInput{
@@ -110,7 +112,8 @@ func ProxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) {
 			ReceiptHandle: msg.ReceiptHandle,
 		}
 		if _, err := s.DeleteMessage(&deleteParams); err != nil {
-			panic(err)
+			return err
 		}
 	}
+	return nil
 }
