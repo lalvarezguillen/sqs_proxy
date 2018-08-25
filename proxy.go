@@ -81,7 +81,8 @@ func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) error {
 	}
 	for {
 		if err := ProxyMessages(s, &readParams, conf.Dest); err != nil {
-			log.Println(err)
+			errIntro := fmt.Sprintf("Proxying from Queue %s has failed with error:", conf.Src)
+			log.Println(errIntro, err)
 			return err
 		}
 		time.Sleep(conf.Interval * time.Second)
