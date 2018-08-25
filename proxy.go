@@ -44,7 +44,8 @@ func main() {
 // StartProxy starts the operations. Based on the proxy configuration,
 // sets up a coroutine per source queue to handle the actual proxying.
 func StartProxy(conf *AppConfig) {
-	fmt.Println(fmt.Sprintf("starting proxy with conf %+v", conf))
+	// fmt.Println(fmt.Sprintf("Config:"))
+	fmt.Println("Config:", conf.Pretty())
 	s := createSQSSession()
 
 	var wg sync.WaitGroup
@@ -71,7 +72,7 @@ type SQSClient interface {
 
 // HookToQueue starts listening from a source queue, and handling the messages
 // that come through.
-func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
+func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	readParams := sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: aws.Int64(10),
@@ -80,7 +81,8 @@ func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) {
 	}
 	for {
 		if err := ProxyMessages(s, &readParams, conf.Dest); err != nil {
-			panic(err)
+			log.Println(err)
+			return err
 		}
 		time.Sleep(conf.Interval * time.Second)
 	}
@@ -94,8 +96,11 @@ func ProxyMessages(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) err
 	if err != nil {
 		return err
 	}
-	fmt.Println(fmt.Sprintf("%d messages to proxy from Queue %s",
-		len(readResp.Messages), *src.QueueUrl))
+	if count := len(readResp.Messages); count > 0 {
+		log.Println(fmt.Sprintf("%d messages to proxy from Queue %s",
+			count, *src.QueueUrl))
+	}
+
 	// TODO: Look into batch writing and batch deleting
 	for _, msg := range readResp.Messages {
 		for _, q := range dest {
