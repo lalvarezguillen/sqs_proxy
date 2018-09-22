@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
+type TargetQueues []string
+
 type ProxySettings struct {
 	Src      string
-	Dest     []string
+	Dest     TargetQueues
 	Interval time.Duration
 }
 
