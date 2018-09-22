@@ -51,7 +51,7 @@ func StartProxy(conf *AppConfig) {
 	var wg sync.WaitGroup
 	wg.Add(len(conf.ProxyOps))
 	for _, op := range conf.ProxyOps {
-		go HookToQueue(s, op, &wg)
+		go HookToQueue(s, op, ProxyMessages, &wg)
 	}
 	wg.Wait()
 }
@@ -72,7 +72,7 @@ type SQSClient interface {
 
 // HookToQueue starts listening from a source queue, and handling the messages
 // that come through.
-func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) error {
+func HookToQueue(s SQSClient, conf ProxySettings, p ProxyFunctionType, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	readParams := sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: aws.Int64(10),
@@ -80,7 +80,7 @@ func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) error {
 		WaitTimeSeconds:     aws.Int64(20),
 	}
 	for {
-		if err := ProxyMessages(s, &readParams, conf.Dest); err != nil {
+		if err := p(s, &readParams, conf.Dest); err != nil {
 			errIntro := fmt.Sprintf("Proxying from Queue %s has failed with error:", conf.Src)
 			log.Println(errIntro, err)
 			return err
@@ -88,6 +88,10 @@ func HookToQueue(s SQSClient, conf ProxySettings, wg *sync.WaitGroup) error {
 		time.Sleep(conf.Interval * time.Second)
 	}
 }
+
+// ProxyFunctionType describes the kind of function that would take messages from
+// a SQS queue and put them in a set of target queues.
+type ProxyFunctionType func(SQSClient, *sqs.ReceiveMessageInput, []string) error
 
 // ProxyMessages reads some of the messages available in a source queue, and
 // copies them to the destination queues, deleting them from the source queue

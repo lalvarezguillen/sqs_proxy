@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,8 +27,15 @@ func TestLoadConfig(t *testing.T) {
 	b, _ := json.Marshal(&conf)
 	fname := "/tmp/dummy-config.json"
 	ioutil.WriteFile(fname, b, 0644)
+	defer os.Remove(fname)
 
 	c, err := loadConfig(fname)
 	assert.NoError(t, err)
 	assert.Equal(t, conf.ProxyOps, c.ProxyOps)
+}
+
+func TestPretty(t *testing.T) {
+	conf := AppConfig{}
+	pretty := conf.Pretty()
+	assert.IsType(t, "", pretty)
 }
