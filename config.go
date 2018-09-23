@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
+type TargetQueues []string
+
 type ProxySettings struct {
 	Src      string
-	Dest     []string
+	Dest     TargetQueues
 	Interval time.Duration
 }
 
@@ -22,7 +24,7 @@ func (c *AppConfig) Pretty() string {
 	return string(b)
 }
 
-func loadConfig(fpath string) (*AppConfig, error) {
+func LoadConfig(fpath string) (*AppConfig, error) {
 	file, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return &AppConfig{}, err

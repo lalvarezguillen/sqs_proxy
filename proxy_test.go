@@ -1,11 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 	"testing"
+	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -42,207 +41,59 @@ func (c *MockedSQS) DeleteMessage(i *sqs.DeleteMessageInput) (*sqs.DeleteMessage
 	return do, args.Error(1)
 }
 
-func TestProxyMessages(t *testing.T) {
-	// Setup
-	c := &MockedSQS{}
-	d := []string{
-		"http://queues.com/dummy-destination",
-	}
+type MockedHook struct {
+	HookCounter int
+}
 
-	i := sqs.ReceiveMessageInput{QueueUrl: aws.String("http://queues.com/dummy")}
-	outp := sqs.ReceiveMessageOutput{
-		Messages: []*sqs.Message{
-			&sqs.Message{Body: aws.String("dummy message 1"), ReceiptHandle: aws.String("dummy-1")},
-			&sqs.Message{Body: aws.String("dummy message 2"), ReceiptHandle: aws.String("dummy-2")},
+func (h *MockedHook) Hook(p *ProxySettings, wg *sync.WaitGroup) {
+	defer wg.Done()
+	h.HookCounter++
+}
+
+func (h *MockedHook) Move(i *sqs.ReceiveMessageInput, t TargetQueues) error {
+	return nil
+}
+
+func TestProxyStart(t *testing.T) {
+	conf := AppConfig{
+		ProxyOps: []ProxySettings{
+			ProxySettings{
+				Src:      "https://queues.com/dummy-src",
+				Dest:     TargetQueues{"https://queues.com/dummy-dest"},
+				Interval: time.Duration(10),
+			},
+			ProxySettings{
+				Src:      "https://queues.com/dummy-src-2",
+				Dest:     TargetQueues{"https://queues.com/dummy-dest-2"},
+				Interval: time.Duration(10),
+			},
 		},
 	}
-	c.On("ReceiveMessage", &i).Return(outp, nil)
-
-	smInput1 := sqs.SendMessageInput{
-		MessageBody: aws.String("dummy message 1"),
-		QueueUrl:    aws.String(d[0]),
+	h := MockedHook{}
+	p := Proxy{
+		WG:     &sync.WaitGroup{},
+		Conf:   &conf,
+		Hooker: &h,
 	}
-	c.On("SendMessage", &smInput1).Return(&sqs.SendMessageOutput{}, nil)
-	smInput2 := sqs.SendMessageInput{
-		MessageBody: aws.String("dummy message 2"),
-		QueueUrl:    aws.String(d[0]),
-	}
-	c.On("SendMessage", &smInput2).Return(&sqs.SendMessageOutput{}, nil)
-
-	dmInput1 := sqs.DeleteMessageInput{
-		QueueUrl:      i.QueueUrl,
-		ReceiptHandle: aws.String("dummy-1"),
-	}
-	c.On("DeleteMessage", &dmInput1).Return(&sqs.DeleteMessageOutput{}, nil)
-	dmInput2 := sqs.DeleteMessageInput{
-		QueueUrl:      i.QueueUrl,
-		ReceiptHandle: aws.String("dummy-2"),
-	}
-	c.On("DeleteMessage", &dmInput2).Return(&sqs.DeleteMessageOutput{}, nil)
-
-	// Actual test
-
-	assert.NoError(t, ProxyMessages(c, &i, d))
-	c.AssertExpectations(t)
-	c.AssertNumberOfCalls(t, "ReceiveMessage", 1)
-	c.AssertNumberOfCalls(t, "SendMessage", 2)
-	c.AssertNumberOfCalls(t, "DeleteMessage", 2)
+	p.Start()
+	assert.Equal(t, 2, h.HookCounter)
 }
 
-func TestNoMessagesToProxy(t *testing.T) {
-	// Setup
-	c := &MockedSQS{}
-	d := []string{
-		"http://queues.com/dummy-destination",
-	}
-
-	i := sqs.ReceiveMessageInput{QueueUrl: aws.String("http://queues.com/dummy")}
-	outp := sqs.ReceiveMessageOutput{
-		Messages: []*sqs.Message{},
-	}
-	c.On("ReceiveMessage", &i).Return(outp, nil)
-
-	smInput1 := sqs.SendMessageInput{
-		MessageBody: aws.String("dummy message 1"),
-		QueueUrl:    aws.String(d[0]),
-	}
-	c.On("SendMessage", &smInput1).Return(&sqs.SendMessageOutput{}, nil)
-	smInput2 := sqs.SendMessageInput{
-		MessageBody: aws.String("dummy message 2"),
-		QueueUrl:    aws.String(d[0]),
-	}
-	c.On("SendMessage", &smInput2).Return(&sqs.SendMessageOutput{}, nil)
-
-	dmInput1 := sqs.DeleteMessageInput{
-		QueueUrl:      i.QueueUrl,
-		ReceiptHandle: aws.String("dummy-1"),
-	}
-	c.On("DeleteMessage", &dmInput1).Return(&sqs.DeleteMessageOutput{}, nil)
-	dmInput2 := sqs.DeleteMessageInput{
-		QueueUrl:      i.QueueUrl,
-		ReceiptHandle: aws.String("dummy-2"),
-	}
-	c.On("DeleteMessage", &dmInput2).Return(&sqs.DeleteMessageOutput{}, nil)
-
-	// Actual test
-	assert.NoError(t, ProxyMessages(c, &i, d))
-	c.AssertNumberOfCalls(t, "ReceiveMessage", 1)
-	c.AssertNotCalled(t, "SendMessage")
-	c.AssertNotCalled(t, "DeleteMessage")
+func TestCreateSQSSession(t *testing.T) {
+	assert.NotPanics(t, func() { CreateSQSSession() })
 }
 
-func TestProxyMessagesErrorReading(t *testing.T) {
-	// Setup
-	c := &MockedSQS{}
-	d := []string{
-		"http://queues.com/dummy-destination",
-	}
-
-	i := sqs.ReceiveMessageInput{QueueUrl: aws.String("http://queues.com/dummy")}
-	outp := sqs.ReceiveMessageOutput{Messages: []*sqs.Message{}}
-	c.On("ReceiveMessage", &i).Return(outp, fmt.Errorf("Reading Failed"))
-	// Actual test
-
-	assert.Error(t, ProxyMessages(c, &i, d))
-	c.AssertExpectations(t)
-	c.AssertNumberOfCalls(t, "ReceiveMessage", 1)
-	c.AssertNotCalled(t, "SendMessage")
-	c.AssertNotCalled(t, "DeleteMessage")
-}
-
-func TestProxyMessagesErrorSending(t *testing.T) {
-	// Setup
-	c := &MockedSQS{}
-	d := []string{
-		"http://queues.com/dummy-destination",
-	}
-
-	i := sqs.ReceiveMessageInput{QueueUrl: aws.String("http://queues.com/dummy")}
-	outp := sqs.ReceiveMessageOutput{
-		Messages: []*sqs.Message{
-			&sqs.Message{Body: aws.String("dummy message 1"), ReceiptHandle: aws.String("dummy-1")},
-			&sqs.Message{Body: aws.String("dummy message 2"), ReceiptHandle: aws.String("dummy-2")},
+func TestNewProxy(t *testing.T) {
+	conf := AppConfig{
+		ProxyOps: []ProxySettings{
+			ProxySettings{
+				Src:      "https://queues.com/dummy-src",
+				Dest:     TargetQueues{"https://queues.com/dummy-dest"},
+				Interval: time.Duration(10),
+			},
 		},
 	}
-	c.On("ReceiveMessage", &i).Return(outp, nil)
 
-	smInput1 := sqs.SendMessageInput{
-		MessageBody: aws.String("dummy message 1"),
-		QueueUrl:    aws.String(d[0]),
-	}
-	c.On("SendMessage", &smInput1).Return(&sqs.SendMessageOutput{}, fmt.Errorf("Dummy Error"))
-
-	// Actual test
-
-	assert.Error(t, ProxyMessages(c, &i, d))
-	c.AssertExpectations(t)
-	c.AssertNumberOfCalls(t, "ReceiveMessage", 1)
-	c.AssertNumberOfCalls(t, "SendMessage", 1)
-	c.AssertNotCalled(t, "DeleteMessage")
-}
-
-func TestProxyMessagesErrorDeleting(t *testing.T) {
-	// Setup
-	c := &MockedSQS{}
-	d := []string{
-		"http://queues.com/dummy-destination",
-	}
-
-	i := sqs.ReceiveMessageInput{QueueUrl: aws.String("http://queues.com/dummy")}
-	outp := sqs.ReceiveMessageOutput{
-		Messages: []*sqs.Message{
-			&sqs.Message{Body: aws.String("dummy message 1"), ReceiptHandle: aws.String("dummy-1")},
-			&sqs.Message{Body: aws.String("dummy message 2"), ReceiptHandle: aws.String("dummy-2")},
-		},
-	}
-	c.On("ReceiveMessage", &i).Return(outp, nil)
-
-	smInput1 := sqs.SendMessageInput{
-		MessageBody: aws.String("dummy message 1"),
-		QueueUrl:    aws.String(d[0]),
-	}
-	c.On("SendMessage", &smInput1).Return(&sqs.SendMessageOutput{}, nil)
-
-	dmInput1 := sqs.DeleteMessageInput{
-		QueueUrl:      i.QueueUrl,
-		ReceiptHandle: aws.String("dummy-1"),
-	}
-	c.On("DeleteMessage", &dmInput1).Return(&sqs.DeleteMessageOutput{}, fmt.Errorf("Dummy Error"))
-
-	// Actual test
-
-	assert.Error(t, ProxyMessages(c, &i, d))
-	c.AssertExpectations(t)
-	c.AssertNumberOfCalls(t, "ReceiveMessage", 1)
-	c.AssertNumberOfCalls(t, "SendMessage", 1)
-	c.AssertNumberOfCalls(t, "DeleteMessage", 1)
-}
-
-func TestHookToQueueError(t *testing.T) {
-	// Setup
-	var proxyFuncInvocations int
-	var proxyFuncSQSClient SQSClient
-	var proxyFuncReceiveMessageInput *sqs.ReceiveMessageInput
-	var proxyFuncDestQueues []string
-	dummyProxyFunc := func(s SQSClient, src *sqs.ReceiveMessageInput, dest []string) error {
-		proxyFuncInvocations++
-		proxyFuncSQSClient = s
-		proxyFuncReceiveMessageInput = src
-		proxyFuncDestQueues = dest
-		return fmt.Errorf("Dummy error")
-	}
-
-	c := &MockedSQS{}
-	conf := ProxySettings{
-		Src:  "source-queue",
-		Dest: []string{"target-queue-1", "target-queue-2"},
-	}
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// Actual tests
-	assert.Error(t, HookToQueue(c, conf, dummyProxyFunc, &wg))
-	assert.Equal(t, c, proxyFuncSQSClient)
-	assert.Equal(t, conf.Dest, proxyFuncDestQueues)
-	assert.Equal(t, conf.Src, *proxyFuncReceiveMessageInput.QueueUrl)
+	proxy := NewProxy(&conf)
+	assert.Equal(t, &conf, proxy.Conf)
 }
