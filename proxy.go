@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
+// NewProxy creates a new Proxy from a set of settings
 func NewProxy(conf *AppConfig) *Proxy {
 	fmt.Println("Config:", conf.Pretty())
 	return &Proxy{
@@ -17,11 +18,15 @@ func NewProxy(conf *AppConfig) *Proxy {
 	}
 }
 
+// Proxier outlines the functionality of a proxy, it should
+// be able to Start, Hook to a queue, and Move messages
+// between queues.
 type Proxier interface {
 	Start(*AppConfig)
 	Hooker
 }
 
+// Proxy is an implementation of Proxier that targets SQS queues
 type Proxy struct {
 	Client SQSClientor
 	WG     *sync.WaitGroup
@@ -40,6 +45,7 @@ func (p *Proxy) Start() {
 	p.WG.Wait()
 }
 
+// CreateSQSSession creates a SQS client.
 func CreateSQSSession() *sqs.SQS {
 	sess := session.Must(session.NewSession())
 	sqsSess := sqs.New(sess)

@@ -8,10 +8,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
+// Mover outlines the interface that MessageMover should
+// implement. Dummy implementations of Mover should be used
+// in tests
 type Mover interface {
 	Move(*sqs.ReceiveMessageInput, TargetQueues) error
 }
 
+// MessagesMover moves messages between SQS queues.
 type MessagesMover struct {
 	Client SQSClientor
 }

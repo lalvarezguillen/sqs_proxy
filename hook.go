@@ -10,11 +10,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
+// Hooker outlines the interface that QueueHook should implement.
+// It's here mainly to aid unittesting.
 type Hooker interface {
 	Hook(*ProxySettings, *sync.WaitGroup)
 	Mover
 }
 
+// QueueHook Hooks to an SQS queue and Moves messages from it.
 type QueueHook struct {
 	Client SQSClientor
 	Mover
