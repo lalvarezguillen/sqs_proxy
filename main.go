@@ -23,11 +23,11 @@ func main() {
 		}
 		fmt.Println("Configuration file:", conf)
 
-		proxyConf, err := loadConfig(conf)
+		proxyConf, err := LoadConfig(conf)
 		if err != nil {
 			return err
 		}
-		p := newProxy(proxyConf)
+		p := NewProxy(proxyConf)
 		p.Start()
 		return nil
 	}

@@ -8,10 +8,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
-func newProxy(conf *AppConfig) *Proxy {
+func NewProxy(conf *AppConfig) *Proxy {
 	fmt.Println("Config:", conf.Pretty())
 	return &Proxy{
-		Client: createSQSSession(),
+		Client: CreateSQSSession(),
 		WG:     &sync.WaitGroup{},
 		Conf:   conf,
 	}
@@ -32,15 +32,15 @@ type Proxy struct {
 
 // Start the operations. Based on the proxy configuration,
 // sets up a coroutine per source queue to handle the actual proxying.
-func (s *Proxy) Start() {
-	s.WG.Add(len(s.Conf.ProxyOps))
-	for _, op := range s.Conf.ProxyOps {
-		go s.Hook(op, s.WG)
+func (p *Proxy) Start() {
+	p.WG.Add(len(p.Conf.ProxyOps))
+	for _, op := range p.Conf.ProxyOps {
+		go p.Hook(&op, p.WG)
 	}
-	s.WG.Wait()
+	p.WG.Wait()
 }
 
-func createSQSSession() *sqs.SQS {
+func CreateSQSSession() *sqs.SQS {
 	sess := session.Must(session.NewSession())
 	sqsSess := sqs.New(sess)
 	return sqsSess

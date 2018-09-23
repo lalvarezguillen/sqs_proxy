@@ -5,35 +5,47 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
+
+type MoverMock struct {
+	mock.Mock
+}
+
+func (m *MoverMock) Move(i *sqs.ReceiveMessageInput, t TargetQueues) error {
+	args := m.Called(i, t)
+	return args.Error(0)
+}
 
 func TestHookToQueueError(t *testing.T) {
 	// Setup
-	var proxyFuncInvocations int
-	var proxyFuncSQSClient SQSClientor
-	var proxyFuncReceiveMessageInput *sqs.ReceiveMessageInput
-	var proxyFuncDestQueues []string
-	dummyProxyFunc := func(s SQSClientor, src *sqs.ReceiveMessageInput, dest []string) error {
-		proxyFuncInvocations++
-		proxyFuncSQSClient = s
-		proxyFuncReceiveMessageInput = src
-		proxyFuncDestQueues = dest
-		return fmt.Errorf("Dummy error")
+	targ := TargetQueues{"https://queues.com/dummy-dest"}
+	conf := ProxySettings{
+		Src:  "https://queues.com/dummy-src",
+		Dest: targ,
+	}
+	src := sqs.ReceiveMessageInput{
+		MaxNumberOfMessages: aws.Int64(10),
+		WaitTimeSeconds:     aws.Int64(20),
+		QueueUrl:            aws.String(conf.Src),
 	}
 
-	c := &MockedSQS{}
-	conf := ProxySettings{
-		Src:  "source-queue",
-		Dest: []string{"target-queue-1", "target-queue-2"},
+	m := MoverMock{}
+	m.On("Move", &src, targ).Return(fmt.Errorf("Dummy Error"))
+
+	h := QueueHook{
+		Mover:  &m,
+		Client: &MockedSQS{},
 	}
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	// Actual tests
-	assert.Error(t, HookToQueue(c, conf, dummyProxyFunc, &wg))
-	assert.Equal(t, c, proxyFuncSQSClient)
-	assert.Equal(t, conf.Dest, proxyFuncDestQueues)
-	assert.Equal(t, conf.Src, *proxyFuncReceiveMessageInput.QueueUrl)
+	assert.Error(t, h.Hook(&conf, &wg))
+	m.AssertExpectations(t)
+	m.AssertCalled(t, "Move", &src, targ)
 }

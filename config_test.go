@@ -29,9 +29,14 @@ func TestLoadConfig(t *testing.T) {
 	ioutil.WriteFile(fname, b, 0644)
 	defer os.Remove(fname)
 
-	c, err := loadConfig(fname)
+	c, err := LoadConfig(fname)
 	assert.NoError(t, err)
 	assert.Equal(t, conf.ProxyOps, c.ProxyOps)
+}
+
+func TestLoadConfigError(t *testing.T) {
+	_, err := LoadConfig("non-existing.json")
+	assert.Error(t, err)
 }
 
 func TestPretty(t *testing.T) {

@@ -11,7 +11,7 @@ import (
 )
 
 type Hooker interface {
-	Hook(ProxySettings, *sync.WaitGroup)
+	Hook(*ProxySettings, *sync.WaitGroup)
 	Mover
 }
 
@@ -22,7 +22,7 @@ type QueueHook struct {
 
 // Hook starts listening from a source queue, and handling the messages
 // that come through.
-func (q *QueueHook) Hook(conf ProxySettings, wg *sync.WaitGroup) error {
+func (q *QueueHook) Hook(conf *ProxySettings, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	readParams := sqs.ReceiveMessageInput{
 		MaxNumberOfMessages: aws.Int64(10),
