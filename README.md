@@ -1,4 +1,4 @@
-## SQS Queues Proxy
+## SQS Queues Proxy [![Build Status](https://travis-ci.org/lalvarezguillen/sqs_proxy.svg?branch=master)](https://travis-ci.org/lalvarezguillen/sqs_proxy) [![codecov](https://codecov.io/gh/lalvarezguillen/sqs_proxy/branch/master/graph/badge.svg)](https://codecov.io/gh/lalvarezguillen/sqs_proxy)
 
 This is a work in progress, and a learning project.
 
