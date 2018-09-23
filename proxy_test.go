@@ -43,11 +43,14 @@ func (c *MockedSQS) DeleteMessage(i *sqs.DeleteMessageInput) (*sqs.DeleteMessage
 
 type MockedHook struct {
 	HookCounter int
+	Mutex       sync.Mutex
 }
 
 func (h *MockedHook) Hook(p *ProxySettings, wg *sync.WaitGroup) {
 	defer wg.Done()
+	h.Mutex.Lock()
 	h.HookCounter++
+	h.Mutex.Unlock()
 }
 
 func (h *MockedHook) Move(i *sqs.ReceiveMessageInput, t TargetQueues) error {
