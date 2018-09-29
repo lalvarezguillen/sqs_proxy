@@ -36,21 +36,39 @@ func (p *MessagesMover) Move(src *sqs.ReceiveMessageInput, t TargetQueues) error
 	// TODO: Look into batch writing and batch deleting
 	for _, msg := range readResp.Messages {
 		for _, q := range t {
-			writeParams := sqs.SendMessageInput{
-				MessageBody: msg.Body,
-				QueueUrl:    aws.String(q),
-			}
-			if _, err := p.Client.SendMessage(&writeParams); err != nil {
+			if err := p.moveMessage(msg, q); err != nil {
 				return err
 			}
 		}
-		deleteParams := sqs.DeleteMessageInput{
-			QueueUrl:      src.QueueUrl,
-			ReceiptHandle: msg.ReceiptHandle,
-		}
-		if _, err := p.Client.DeleteMessage(&deleteParams); err != nil {
+		if err := p.deleteMessage(msg, *src.QueueUrl); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// moveMessage inserts an sqs.Message to a new SQS Queue.
+func (p *MessagesMover) moveMessage(m *sqs.Message, queueURL string) error {
+	fmt.Println("called moveMovessage")
+	writeParams := sqs.SendMessageInput{
+		MessageBody: m.Body,
+		QueueUrl:    aws.String(queueURL),
+	}
+	if _, err := p.Client.SendMessage(&writeParams); err != nil {
+		return err
+	}
+	return nil
+}
+
+// deleteMessage removes an sqs.Message from its original queue
+func (p *MessagesMover) deleteMessage(m *sqs.Message, queueURL string) error {
+	fmt.Println("called deleteMessage")
+	deleteParams := sqs.DeleteMessageInput{
+		QueueUrl:      aws.String(queueURL),
+		ReceiptHandle: m.ReceiptHandle,
+	}
+	if _, err := p.Client.DeleteMessage(&deleteParams); err != nil {
+		return err
 	}
 	return nil
 }

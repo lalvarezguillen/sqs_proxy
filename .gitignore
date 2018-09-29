@@ -2,3 +2,4 @@ config/
 run_*.sh
 .vscode
 sqs_proxy
+cover.out
